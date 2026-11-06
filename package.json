@@ -1,0 +1,19 @@
+{
+  "name": "absensi-otban1",
+  "version": "1.0.0",
+  "description": "Sistem Informasi Absensi Anak Magang Kantor Otoritas Bandar Udara Wilayah I",
+  "private": true,
+  "scripts": {
+    "setup": "npm run setup:backend && npm run setup:frontend",
+    "setup:backend": "cd backend && npm install",
+    "setup:frontend": "cd frontend && npm install",
+    "seed": "cd backend && node src/utils/seeder.js",
+    "dev:backend": "cd backend && node server.js",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"blue,cyan\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "build": "cd frontend && npm run build"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
