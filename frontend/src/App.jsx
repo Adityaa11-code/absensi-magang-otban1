@@ -1,21 +1,24 @@
-import React, { useState } from 'react';
-import { useAuth } from './context/AuthContext';
-import Navbar from './components/Navbar';
-import Sidebar from './components/Sidebar';
-import Toast from './components/Toast';
-import Login from './pages/Login';
+import React, { useState } from "react";
+import { useAuth } from "./context/AuthContext";
+import Navbar from "./components/Navbar";
+import Sidebar from "./components/Sidebar";
+import Toast from "./components/Toast";
+import Login from "./pages/Login";
+import Logbooks from "./pages/Logbooks";
+import Announcements from "./pages/Announcements";
+import Profile from "./pages/Profile";
 
 // Intern Pages
-import InternDashboard from './pages/intern/InternDashboard';
-import InternLeave from './pages/intern/InternLeave';
-import InternHistory from './pages/intern/InternHistory';
+import InternDashboard from "./pages/intern/InternDashboard";
+import InternLeave from "./pages/intern/InternLeave";
+import InternHistory from "./pages/intern/InternHistory";
 
 // Admin Pages
-import AdminDashboard from './pages/admin/AdminDashboard';
-import AdminInterns from './pages/admin/AdminInterns';
-import AdminMonitoring from './pages/admin/AdminMonitoring';
-import AdminSettings from './pages/admin/AdminSettings';
-import AdminReports from './pages/admin/AdminReports';
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminInterns from "./pages/admin/AdminInterns";
+import AdminMonitoring from "./pages/admin/AdminMonitoring";
+import AdminSettings from "./pages/admin/AdminSettings";
+import AdminReports from "./pages/admin/AdminReports";
 
 export default function App() {
   const { user, loading } = useAuth();
@@ -24,9 +27,34 @@ export default function App() {
   const [toasts, setToasts] = useState([]);
 
   // Setup default tab based on role
-  const activeTab = currentTab || (user?.role === 'admin' ? 'admin-dashboard' : 'dashboard');
+  const allowed =
+    user?.role === "admin"
+      ? [
+          "admin-dashboard",
+          "admin-interns",
+          "admin-monitoring",
+          "admin-settings",
+          "admin-reports",
+          "logbooks",
+          "announcements",
+          "profile",
+        ]
+      : [
+          "dashboard",
+          "leaves",
+          "history",
+          "logbooks",
+          "announcements",
+          "profile",
+        ];
+  const activeTab = allowed.includes(currentTab) ? currentTab : allowed[0];
+  React.useEffect(() => {
+    setCurrentTab(null);
+    setSidebarOpen(false);
+    setToasts([]);
+  }, [user?.id]);
 
-  const showToast = (message, type = 'success') => {
+  const showToast = (message, type = "success") => {
     const id = Date.now() + Math.random();
     setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => {
@@ -40,20 +68,28 @@ export default function App() {
 
   if (loading) {
     return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--primary-navy)',
-        color: '#ffffff',
-        fontFamily: 'inherit',
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '20px', fontWeight: 800, letterSpacing: '0.5px' }}>
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "var(--primary-navy)",
+          color: "#ffffff",
+          fontFamily: "inherit",
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <div
+            style={{
+              fontSize: "20px",
+              fontWeight: 800,
+              letterSpacing: "0.5px",
+            }}
+          >
             OTBAN WILAYAH I
           </div>
-          <div style={{ fontSize: '13px', color: '#94a3b8', marginTop: '6px' }}>
+          <div style={{ fontSize: "13px", color: "#94a3b8", marginTop: "6px" }}>
             Memuat Sistem Informasi Absensi...
           </div>
         </div>
@@ -72,18 +108,24 @@ export default function App() {
 
   // Titles mapping
   const titles = {
-    'dashboard': 'Dashboard & Presensi Magang',
-    'leaves': 'Pengajuan Izin & Sakit',
-    'history': 'Riwayat Kehadiran Pribadi',
-    'admin-dashboard': 'Ringkasan Dashboard Administrator',
-    'admin-interns': 'Manajemen Data Peserta Magang',
-    'admin-monitoring': 'Monitoring Presensi & Verifikasi Izin',
-    'admin-settings': 'Pengaturan Lokasi Kantor & Radius GPS',
-    'admin-reports': 'Rekapitulasi & Laporan Kehadiran',
+    dashboard: "Dashboard",
+    logbooks: user?.role === "admin" ? "Ulasan logbook" : "Logbook harian",
+    announcements: "Pengumuman",
+    profile: "Profil & keamanan",
+    leaves: "Pengajuan Izin & Sakit",
+    history: "Riwayat Kehadiran Pribadi",
+    "admin-dashboard": "Ringkasan",
+    "admin-interns": "Manajemen Data Peserta Magang",
+    "admin-monitoring": "Monitoring Presensi & Verifikasi Izin",
+    "admin-settings": "Pengaturan Lokasi Kantor & Radius GPS",
+    "admin-reports": "Rekapitulasi & Laporan Kehadiran",
   };
 
   return (
     <div className="app-container">
+      <a className="skip-link" href="#main-content">
+        Langsung ke konten
+      </a>
       <Sidebar
         currentTab={activeTab}
         setTab={setCurrentTab}
@@ -93,22 +135,43 @@ export default function App() {
 
       <div className="main-wrapper">
         <Navbar
-          pageTitle={titles[activeTab] || 'Sistem Absensi Otban 1'}
+          pageTitle={titles[activeTab] || "Sistem Absensi Otban 1"}
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         />
 
-        <main className="content-body">
+        <main
+          className="content-body"
+          id="main-content"
+          key={user.id + activeTab}
+        >
+          {activeTab === "logbooks" && <Logbooks showToast={showToast} />}
+          {activeTab === "announcements" && (
+            <Announcements showToast={showToast} />
+          )}
+          {activeTab === "profile" && <Profile showToast={showToast} />}
           {/* Render Intern Pages */}
-          {activeTab === 'dashboard' && <InternDashboard showToast={showToast} />}
-          {activeTab === 'leaves' && <InternLeave showToast={showToast} />}
-          {activeTab === 'history' && <InternHistory showToast={showToast} />}
+          {activeTab === "dashboard" && (
+            <InternDashboard showToast={showToast} setTab={setCurrentTab} />
+          )}
+          {activeTab === "leaves" && <InternLeave showToast={showToast} />}
+          {activeTab === "history" && <InternHistory showToast={showToast} />}
 
           {/* Render Admin Pages */}
-          {activeTab === 'admin-dashboard' && <AdminDashboard showToast={showToast} setTab={setCurrentTab} />}
-          {activeTab === 'admin-interns' && <AdminInterns showToast={showToast} />}
-          {activeTab === 'admin-monitoring' && <AdminMonitoring showToast={showToast} />}
-          {activeTab === 'admin-settings' && <AdminSettings showToast={showToast} />}
-          {activeTab === 'admin-reports' && <AdminReports showToast={showToast} />}
+          {activeTab === "admin-dashboard" && (
+            <AdminDashboard showToast={showToast} setTab={setCurrentTab} />
+          )}
+          {activeTab === "admin-interns" && (
+            <AdminInterns showToast={showToast} />
+          )}
+          {activeTab === "admin-monitoring" && (
+            <AdminMonitoring showToast={showToast} />
+          )}
+          {activeTab === "admin-settings" && (
+            <AdminSettings showToast={showToast} />
+          )}
+          {activeTab === "admin-reports" && (
+            <AdminReports showToast={showToast} />
+          )}
         </main>
       </div>
 

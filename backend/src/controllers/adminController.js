@@ -1,63 +1,97 @@
-const bcrypt = require('bcryptjs');
-const db = require('../config/db');
-const { getWIBDateTime } = require('../utils/time');
+const bcrypt = require("bcryptjs");
+const db = require("../config/db");
+const { validDate, validCoords } = require("../utils/validation");
+const { getWIBDateTime } = require("../utils/time");
 
 function getDashboardStats(req, res) {
   try {
     const { date } = getWIBDateTime();
 
     // Total magang aktif
-    const totalInterns = db.prepare(`SELECT COUNT(*) as count FROM users WHERE role = 'intern' AND status = 'active'`).get().count;
+    const totalInterns = db
+      .prepare(
+        `SELECT COUNT(*) as count FROM users WHERE role = 'intern' AND status = 'active'`,
+      )
+      .get().count;
 
     // Hadir hari ini
-    const presentToday = db.prepare(`
+    const presentToday = db
+      .prepare(
+        `
       SELECT COUNT(*) as count FROM attendances 
-      WHERE date = ? AND check_in_time IS NOT NULL
-    `).get(date).count;
+      WHERE date = ? AND check_in_time IS NOT NULL AND user_id IN (SELECT id FROM users WHERE role='intern' AND status='active')
+    `,
+      )
+      .get(date).count;
 
     // Terlambat hari ini
-    const lateToday = db.prepare(`
+    const lateToday = db
+      .prepare(
+        `
       SELECT COUNT(*) as count FROM attendances 
-      WHERE date = ? AND check_in_status = 'late'
-    `).get(date).count;
+      WHERE date = ? AND check_in_status = 'late' AND user_id IN (SELECT id FROM users WHERE role='intern' AND status='active')
+    `,
+      )
+      .get(date).count;
 
     // Tepat waktu hari ini
-    const onTimeToday = db.prepare(`
+    const onTimeToday = db
+      .prepare(
+        `
       SELECT COUNT(*) as count FROM attendances 
-      WHERE date = ? AND check_in_status = 'on_time'
-    `).get(date).count;
+      WHERE date = ? AND check_in_status = 'on_time' AND user_id IN (SELECT id FROM users WHERE role='intern' AND status='active')
+    `,
+      )
+      .get(date).count;
 
     // Izin / Sakit hari ini yang approved
-    const leaveToday = db.prepare(`
-      SELECT COUNT(*) as count FROM leaves 
-      WHERE status = 'approved' AND ? BETWEEN start_date AND end_date
-    `).get(date).count;
+    const leaveToday = db
+      .prepare(
+        `
+      SELECT COUNT(DISTINCT user_id) as count FROM leaves 
+      WHERE status = 'approved' AND ? BETWEEN start_date AND end_date AND user_id IN (SELECT id FROM users WHERE role='intern' AND status='active')
+    `,
+      )
+      .get(date).count;
 
     // Belum absen
-    const notPresentToday = Math.max(0, totalInterns - presentToday - leaveToday);
+    const notPresentToday = Math.max(
+      0,
+      totalInterns - presentToday - leaveToday,
+    );
 
     // Pengajuan izin yang masih pending
-    const pendingLeavesCount = db.prepare(`SELECT COUNT(*) as count FROM leaves WHERE status = 'pending'`).get().count;
+    const pendingLeavesCount = db
+      .prepare(`SELECT COUNT(*) as count FROM leaves WHERE status = 'pending'`)
+      .get().count;
 
     // Feeds absensi hari ini (terbaru di atas)
-    const recentAttendances = db.prepare(`
+    const recentAttendances = db
+      .prepare(
+        `
       SELECT a.*, u.name, u.nim, u.division, u.institution
       FROM attendances a
       JOIN users u ON a.user_id = u.id
       WHERE a.date = ?
       ORDER BY a.created_at DESC
       LIMIT 10
-    `).all(date);
+    `,
+      )
+      .all(date);
 
     // Pengajuan izin terbaru yang pending
-    const recentPendingLeaves = db.prepare(`
+    const recentPendingLeaves = db
+      .prepare(
+        `
       SELECT l.*, u.name, u.nim, u.division, u.institution
       FROM leaves l
       JOIN users u ON l.user_id = u.id
       WHERE l.status = 'pending'
       ORDER BY l.created_at DESC
       LIMIT 5
-    `).all();
+    `,
+      )
+      .all();
 
     res.json({
       success: true,
@@ -75,8 +109,10 @@ function getDashboardStats(req, res) {
       recentPendingLeaves,
     });
   } catch (err) {
-    console.error('Error getDashboardStats:', err);
-    res.status(500).json({ success: false, message: 'Gagal memuat statistik dashboard.' });
+    console.error("Error getDashboardStats:", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Gagal memuat statistik dashboard." });
   }
 }
 
@@ -108,24 +144,65 @@ function getAllInterns(req, res) {
     const interns = db.prepare(query).all(...params);
     res.json({ success: true, interns });
   } catch (err) {
-    console.error('Error getAllInterns:', err);
-    res.status(500).json({ success: false, message: 'Gagal mengambil data peserta magang.' });
+    console.error("Error getAllInterns:", err);
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Gagal mengambil data peserta magang.",
+      });
   }
 }
 
 function createIntern(req, res) {
   try {
-    const { name, email, password, nim, institution, major, division, phone, startDate, endDate } = req.body;
+    const {
+      name,
+      email,
+      password,
+      nim,
+      institution,
+      major,
+      division,
+      phone,
+      startDate,
+      endDate,
+    } = req.body;
 
     if (!name || !email || !password) {
-      return res.status(400).json({ success: false, message: 'Nama, email, dan password wajib diisi.' });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Nama, email, dan password wajib diisi.",
+        });
     }
 
-    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email.trim().toLowerCase());
+    const existing = db
+      .prepare("SELECT id FROM users WHERE email = ?")
+      .get(email.trim().toLowerCase());
     if (existing) {
-      return res.status(400).json({ success: false, message: 'Alamat email sudah terdaftar dalam sistem.' });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Alamat email sudah terdaftar dalam sistem.",
+        });
     }
 
+    if (
+      !/^\S+@\S+\.\S+$/.test(email) ||
+      password.length < 8 ||
+      (startDate && !validDate(startDate)) ||
+      (endDate && !validDate(endDate)) ||
+      (startDate && endDate && startDate > endDate)
+    )
+      return res
+        .status(400)
+        .json({
+          message:
+            "Email, periode magang, atau password (minimal 8 karakter) tidak valid.",
+        });
     const salt = bcrypt.genSaltSync(10);
     const hashedPassword = bcrypt.hashSync(password, salt);
 
@@ -141,40 +218,86 @@ function createIntern(req, res) {
       nim || null,
       institution || null,
       major || null,
-      division || 'Pelayanan & Pengoperasian Bandar Udara',
+      division || "Pelayanan & Pengoperasian Bandar Udara",
       phone || null,
       startDate || null,
-      endDate || null
+      endDate || null,
     );
 
-    const newIntern = db.prepare('SELECT id, name, email, role, nim, institution, major, division, phone, start_date, end_date, status FROM users WHERE id = ?').get(result.lastInsertRowid);
+    const newIntern = db
+      .prepare(
+        "SELECT id, name, email, role, nim, institution, major, division, phone, start_date, end_date, status FROM users WHERE id = ?",
+      )
+      .get(result.lastInsertRowid);
 
-    res.json({ success: true, message: 'Peserta magang berhasil ditambahkan.', intern: newIntern });
+    res.json({
+      success: true,
+      message: "Peserta magang berhasil ditambahkan.",
+      intern: newIntern,
+    });
   } catch (err) {
-    console.error('Error createIntern:', err);
-    res.status(500).json({ success: false, message: 'Gagal menambahkan data peserta magang.' });
+    console.error("Error createIntern:", err);
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Gagal menambahkan data peserta magang.",
+      });
   }
 }
 
 function updateIntern(req, res) {
   try {
     const { id } = req.params;
-    const { name, email, nim, institution, major, division, phone, startDate, endDate, status } = req.body;
+    const {
+      name,
+      email,
+      nim,
+      institution,
+      major,
+      division,
+      phone,
+      startDate,
+      endDate,
+      status,
+    } = req.body;
 
-    const existing = db.prepare('SELECT id FROM users WHERE id = ?').get(id);
+    const existing = db
+      .prepare("SELECT id FROM users WHERE role = 'intern' AND id = ?")
+      .get(id);
     if (!existing) {
-      return res.status(404).json({ success: false, message: 'Peserta magang tidak ditemukan.' });
+      return res
+        .status(404)
+        .json({ success: false, message: "Peserta magang tidak ditemukan." });
     }
 
+    if (
+      (status && !["active", "inactive"].includes(status)) ||
+      (email && !/^\S+@\S+\.\S+$/.test(email)) ||
+      (startDate && !validDate(startDate)) ||
+      (endDate && !validDate(endDate)) ||
+      (startDate && endDate && startDate > endDate)
+    )
+      return res
+        .status(400)
+        .json({ message: "Email, status, atau periode magang tidak valid." });
     // Cek duplikasi email jika diubah
     if (email) {
-      const emailConflict = db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(email.trim().toLowerCase(), id);
+      const emailConflict = db
+        .prepare("SELECT id FROM users WHERE email = ? AND id != ?")
+        .get(email.trim().toLowerCase(), id);
       if (emailConflict) {
-        return res.status(400).json({ success: false, message: 'Email sudah digunakan oleh pengguna lain.' });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Email sudah digunakan oleh pengguna lain.",
+          });
       }
     }
 
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE users 
       SET name = COALESCE(?, name),
           email = COALESCE(?, email),
@@ -187,7 +310,8 @@ function updateIntern(req, res) {
           end_date = COALESCE(?, end_date),
           status = COALESCE(?, status)
       WHERE id = ?
-    `).run(
+    `,
+    ).run(
       name ? name.trim() : null,
       email ? email.trim().toLowerCase() : null,
       nim || null,
@@ -198,15 +322,28 @@ function updateIntern(req, res) {
       startDate || null,
       endDate || null,
       status || null,
-      id
+      id,
     );
 
-    const updated = db.prepare('SELECT id, name, email, role, nim, institution, major, division, phone, start_date, end_date, status FROM users WHERE id = ?').get(id);
+    const updated = db
+      .prepare(
+        "SELECT id, name, email, role, nim, institution, major, division, phone, start_date, end_date, status FROM users WHERE id = ?",
+      )
+      .get(id);
 
-    res.json({ success: true, message: 'Data peserta magang berhasil diperbarui.', intern: updated });
+    res.json({
+      success: true,
+      message: "Data peserta magang berhasil diperbarui.",
+      intern: updated,
+    });
   } catch (err) {
-    console.error('Error updateIntern:', err);
-    res.status(500).json({ success: false, message: 'Gagal memperbarui data peserta magang.' });
+    console.error("Error updateIntern:", err);
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Gagal memperbarui data peserta magang.",
+      });
   }
 }
 
@@ -215,28 +352,50 @@ function resetInternPassword(req, res) {
     const { id } = req.params;
     const { newPassword } = req.body;
 
-    if (!newPassword || newPassword.length < 6) {
-      return res.status(400).json({ success: false, message: 'Password baru minimal harus 6 karakter.' });
+    if (!newPassword || newPassword.length < 8) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Password baru minimal harus 8 karakter.",
+        });
     }
 
     const salt = bcrypt.genSaltSync(10);
     const hashedPassword = bcrypt.hashSync(newPassword, salt);
 
-    db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashedPassword, id);
+    if (
+      !db.prepare("SELECT id FROM users WHERE id=? AND role='intern'").get(id)
+    )
+      return res.status(404).json({ message: "Peserta tidak ditemukan." });
+    db.prepare("UPDATE users SET password = ? WHERE id = ?").run(
+      hashedPassword,
+      id,
+    );
 
-    res.json({ success: true, message: 'Kata sandi berhasil direset.' });
+    res.json({ success: true, message: "Kata sandi berhasil direset." });
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Gagal mereset kata sandi.' });
+    res
+      .status(500)
+      .json({ success: false, message: "Gagal mereset kata sandi." });
   }
 }
 
 function deleteIntern(req, res) {
   try {
     const { id } = req.params;
-    db.prepare('DELETE FROM users WHERE id = ? AND role = ?').run(id, 'intern');
-    res.json({ success: true, message: 'Peserta magang dan riwayat terkait berhasil dihapus.' });
+    db.prepare("DELETE FROM users WHERE id = ? AND role = ?").run(id, "intern");
+    res.json({
+      success: true,
+      message: "Peserta magang dan riwayat terkait berhasil dihapus.",
+    });
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Gagal menghapus data peserta magang.' });
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Gagal menghapus data peserta magang.",
+      });
   }
 }
 
@@ -266,9 +425,9 @@ function getAllAttendances(req, res) {
     }
 
     if (status) {
-      if (status === 'late') {
+      if (status === "late") {
         query += ` AND a.check_in_status = 'late'`;
-      } else if (status === 'on_time') {
+      } else if (status === "on_time") {
         query += ` AND a.check_in_status = 'on_time'`;
       }
     }
@@ -284,8 +443,10 @@ function getAllAttendances(req, res) {
     const attendances = db.prepare(query).all(...params);
     res.json({ success: true, attendances });
   } catch (err) {
-    console.error('Error getAllAttendances:', err);
-    res.status(500).json({ success: false, message: 'Gagal memuat log kehadiran.' });
+    console.error("Error getAllAttendances:", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Gagal memuat log kehadiran." });
   }
 }
 
@@ -317,8 +478,10 @@ function getAllLeaves(req, res) {
     const leaves = db.prepare(query).all(...params);
     res.json({ success: true, leaves });
   } catch (err) {
-    console.error('Error getAllLeaves:', err);
-    res.status(500).json({ success: false, message: 'Gagal memuat permohonan izin.' });
+    console.error("Error getAllLeaves:", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Gagal memuat permohonan izin." });
   }
 }
 
@@ -327,40 +490,76 @@ function verifyLeave(req, res) {
     const { id } = req.params;
     const { status, adminNotes } = req.body;
 
-    if (!['approved', 'rejected'].includes(status)) {
-      return res.status(400).json({ success: false, message: 'Status harus bernilai approved atau rejected.' });
+    if (!["approved", "rejected"].includes(status)) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Status harus bernilai approved atau rejected.",
+        });
     }
 
-    db.prepare(`
+    const leave = db.prepare("SELECT * FROM leaves WHERE id=?").get(id);
+    if (!leave)
+      return res.status(404).json({ message: "Pengajuan tidak ditemukan." });
+    if (leave.status !== "pending")
+      return res.status(409).json({ message: "Pengajuan sudah diverifikasi." });
+    if (
+      status === "approved" &&
+      db
+        .prepare(
+          "SELECT id FROM attendances WHERE user_id=? AND date BETWEEN ? AND ? AND check_in_time IS NOT NULL",
+        )
+        .get(leave.user_id, leave.start_date, leave.end_date)
+    )
+      return res
+        .status(409)
+        .json({
+          message: "Izin berbenturan dengan presensi yang sudah tercatat.",
+        });
+    db.prepare(
+      `
       UPDATE leaves 
       SET status = ?, admin_notes = ? 
       WHERE id = ?
-    `).run(status, adminNotes || null, id);
+    `,
+    ).run(status, adminNotes || null, id);
 
-    const updated = db.prepare(`
+    const updated = db
+      .prepare(
+        `
       SELECT l.*, u.name, u.nim, u.division
       FROM leaves l
       JOIN users u ON l.user_id = u.id
       WHERE l.id = ?
-    `).get(id);
+    `,
+      )
+      .get(id);
 
     res.json({
       success: true,
-      message: status === 'approved' ? 'Pengajuan izin berhasil disetujui.' : 'Pengajuan izin telah ditolak.',
+      message:
+        status === "approved"
+          ? "Pengajuan izin berhasil disetujui."
+          : "Pengajuan izin telah ditolak.",
       leave: updated,
     });
   } catch (err) {
-    console.error('Error verifyLeave:', err);
-    res.status(500).json({ success: false, message: 'Gagal memproses verifikasi izin.' });
+    console.error("Error verifyLeave:", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Gagal memproses verifikasi izin." });
   }
 }
 
 function getSettings(req, res) {
   try {
-    const settings = db.prepare('SELECT * FROM settings WHERE id = 1').get();
+    const settings = db.prepare("SELECT * FROM settings WHERE id = 1").get();
     res.json({ success: true, settings });
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Gagal mengambil pengaturan sistem.' });
+    res
+      .status(500)
+      .json({ success: false, message: "Gagal mengambil pengaturan sistem." });
   }
 }
 
@@ -377,7 +576,27 @@ function updateSettings(req, res) {
       workEndTime,
     } = req.body;
 
-    db.prepare(`
+    if (
+      (officeLat !== undefined || officeLng !== undefined) &&
+      !validCoords(Number(officeLat), Number(officeLng))
+    )
+      return res.status(400).json({ message: "Koordinat kantor tidak valid." });
+    if (
+      radiusMeters !== undefined &&
+      (!Number.isInteger(Number(radiusMeters)) ||
+        Number(radiusMeters) < 50 ||
+        Number(radiusMeters) > 5000)
+    )
+      return res.status(400).json({ message: "Radius harus 50�5000 meter." });
+    const clock = /^([01]\d|2[0-3]):[0-5]\d$/;
+    if (
+      (workStartTime && !clock.test(workStartTime)) ||
+      (workEndTime && !clock.test(workEndTime)) ||
+      (workStartTime && workEndTime && workStartTime >= workEndTime)
+    )
+      return res.status(400).json({ message: "Jam kerja tidak valid." });
+    db.prepare(
+      `
       UPDATE settings 
       SET office_name = COALESCE(?, office_name),
           office_address = COALESCE(?, office_address),
@@ -389,7 +608,8 @@ function updateSettings(req, res) {
           work_end_time = COALESCE(?, work_end_time),
           updated_at = CURRENT_TIMESTAMP
       WHERE id = 1
-    `).run(
+    `,
+    ).run(
       officeName || null,
       officeAddress || null,
       officeLat !== undefined ? parseFloat(officeLat) : null,
@@ -397,19 +617,21 @@ function updateSettings(req, res) {
       radiusMeters !== undefined ? parseInt(radiusMeters, 10) : null,
       radiusEnabled !== undefined ? (radiusEnabled ? 1 : 0) : null,
       workStartTime || null,
-      workEndTime || null
+      workEndTime || null,
     );
 
-    const updated = db.prepare('SELECT * FROM settings WHERE id = 1').get();
+    const updated = db.prepare("SELECT * FROM settings WHERE id = 1").get();
 
     res.json({
       success: true,
-      message: 'Pengaturan lokasi kantor & radius berhasil diperbarui.',
+      message: "Pengaturan lokasi kantor & radius berhasil diperbarui.",
       settings: updated,
     });
   } catch (err) {
-    console.error('Error updateSettings:', err);
-    res.status(500).json({ success: false, message: 'Gagal memperbarui pengaturan.' });
+    console.error("Error updateSettings:", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Gagal memperbarui pengaturan." });
   }
 }
 
@@ -417,8 +639,18 @@ function getReportSummary(req, res) {
   try {
     const { startDate, endDate, division } = req.query;
 
-    if (!startDate || !endDate) {
-      return res.status(400).json({ success: false, message: 'Rentang tanggal mulai dan selesai wajib ditentukan.' });
+    if (
+      !validDate(startDate) ||
+      !validDate(endDate) ||
+      startDate > endDate ||
+      (new Date(endDate) - new Date(startDate)) / 86400000 > 366
+    ) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Rentang tanggal mulai dan selesai wajib ditentukan.",
+        });
     }
 
     let usersQuery = `SELECT id, name, nim, institution, division FROM users WHERE role = 'intern' AND status = 'active'`;
@@ -434,32 +666,62 @@ function getReportSummary(req, res) {
 
     const reportData = interns.map((intern) => {
       // Hitung kehadiran dalam rentang tanggal
-      const attendances = db.prepare(`
+      const attendances = db
+        .prepare(
+          `
         SELECT check_in_status, check_out_status 
         FROM attendances 
         WHERE user_id = ? AND date BETWEEN ? AND ? AND check_in_time IS NOT NULL
-      `).all(intern.id, startDate, endDate);
+      `,
+        )
+        .all(intern.id, startDate, endDate);
 
       const totalHadir = attendances.length;
-      const tepatWaktu = attendances.filter(a => a.check_in_status === 'on_time').length;
-      const terlambat = attendances.filter(a => a.check_in_status === 'late').length;
+      const tepatWaktu = attendances.filter(
+        (a) => a.check_in_status === "on_time",
+      ).length;
+      const terlambat = attendances.filter(
+        (a) => a.check_in_status === "late",
+      ).length;
 
       // Hitung izin & sakit dalam rentang tanggal
-      const leaves = db.prepare(`
-        SELECT type FROM leaves 
+      const leaves = db
+        .prepare(
+          `
+        SELECT type, start_date, end_date FROM leaves 
         WHERE user_id = ? AND status = 'approved' 
           AND ((start_date BETWEEN ? AND ?) OR (end_date BETWEEN ? AND ?) OR (? BETWEEN start_date AND end_date))
-      `).all(intern.id, startDate, endDate, startDate, endDate, startDate);
+      `,
+        )
+        .all(intern.id, startDate, endDate, startDate, endDate, startDate);
 
-      const sakit = leaves.filter(l => l.type === 'sakit').length;
-      const izin = leaves.filter(l => l.type !== 'sakit').length;
+      const days = (filter) => {
+        const unique = new Set();
+        for (const l of leaves.filter(filter)) {
+          for (
+            let d = new Date(
+              (l.start_date > startDate ? l.start_date : startDate) +
+                "T00:00:00Z",
+            );
+            d.toISOString().slice(0, 10) <= l.end_date &&
+            d.toISOString().slice(0, 10) <= endDate;
+            d.setUTCDate(d.getUTCDate() + 1)
+          ) {
+            if (![0, 6].includes(d.getUTCDay()))
+              unique.add(d.toISOString().slice(0, 10));
+          }
+        }
+        return unique.size;
+      };
+      const sakit = days((l) => l.type === "sakit");
+      const izin = days((l) => l.type !== "sakit");
 
       return {
         id: intern.id,
         name: intern.name,
-        nim: intern.nim || '-',
-        institution: intern.institution || '-',
-        division: intern.division || '-',
+        nim: intern.nim || "-",
+        institution: intern.institution || "-",
+        division: intern.division || "-",
         totalHadir,
         tepatWaktu,
         terlambat,
@@ -471,12 +733,14 @@ function getReportSummary(req, res) {
     res.json({
       success: true,
       period: { startDate, endDate },
-      division: division || 'Semua Divisi',
+      division: division || "Semua Divisi",
       report: reportData,
     });
   } catch (err) {
-    console.error('Error getReportSummary:', err);
-    res.status(500).json({ success: false, message: 'Gagal menyusun ringkasan laporan.' });
+    console.error("Error getReportSummary:", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Gagal menyusun ringkasan laporan." });
   }
 }
 

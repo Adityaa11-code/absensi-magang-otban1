@@ -1,19 +1,22 @@
-const { DatabaseSync } = require('node:sqlite');
-const path = require('path');
-const fs = require('fs');
+const { DatabaseSync } = require("node:sqlite");
+const path = require("path");
+const fs = require("fs");
 
-const dataDir = path.join(__dirname, '../../data');
+const dataDir = path.join(__dirname, "../../data");
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-const uploadsDir = path.join(__dirname, '../../uploads');
+const uploadsDir = path.join(__dirname, "../../uploads");
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-const dbPath = path.join(dataDir, 'otban_absensi.db');
+const dbPath = process.env.DB_PATH || path.join(dataDir, "otban_absensi.db");
 const db = new DatabaseSync(dbPath);
+db.exec(
+  "PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;",
+);
 
 // Database schema initialization
 function initDb() {
@@ -83,15 +86,25 @@ function initDb() {
     );
   `);
 
-  const existingSettings = db.prepare('SELECT id FROM settings WHERE id = 1').get();
+  const existingSettings = db
+    .prepare("SELECT id FROM settings WHERE id = 1")
+    .get();
   if (!existingSettings) {
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO settings (id, office_name, office_address, office_lat, office_lng, radius_meters, radius_enabled, work_start_time, work_end_time)
       VALUES (1, 'Kantor Otoritas Bandar Udara Wilayah I', 'Gedung Kantor Otoritas Bandar Udara Wilayah I, Bandara Soekarno-Hatta, Tangerang', -6.126500, 106.654800, 250, 1, '08:00', '16:30')
-    `).run();
+    `,
+    ).run();
   }
 }
 
 initDb();
+db.exec(
+  fs.readFileSync(
+    path.join(__dirname, "../../migrations/002_workspace.sql"),
+    "utf8",
+  ),
+);
 
 module.exports = db;

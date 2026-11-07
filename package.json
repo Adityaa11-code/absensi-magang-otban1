@@ -11,9 +11,18 @@
     "dev:backend": "cd backend && node server.js",
     "dev:frontend": "cd frontend && npm run dev",
     "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"blue,cyan\" \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "build": "cd frontend && npm run build"
+    "build": "cd frontend && npm run build",
+    "test": "node --test backend/tests/*.test.js",
+    "format": "prettier --write \"frontend/src/**/*.{js,jsx,css}\" \"backend/{server.js,src/**/*.js,tests/**/*.js}\"",
+    "start": "node backend/server.js",
+    "test:ui": "playwright test"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "@playwright/test": "^1.65.0",
+    "concurrently": "^8.2.2",
+    "prettier": "^3.9.10"
+  },
+  "engines": {
+    "node": ">=24.0.0"
   }
 }

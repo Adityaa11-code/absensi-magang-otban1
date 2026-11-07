@@ -1,5 +1,5 @@
-import React from 'react';
-import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
+import React from "react";
+import { CheckCircle2, AlertCircle, Info, X } from "lucide-react";
 
 export default function Toast({ toasts, onDismiss }) {
   if (!toasts || toasts.length === 0) return null;
@@ -8,8 +8,8 @@ export default function Toast({ toasts, onDismiss }) {
     <div className="toast-container">
       {toasts.map((toast) => {
         let Icon = CheckCircle2;
-        if (toast.type === 'error') Icon = AlertCircle;
-        if (toast.type === 'info') Icon = Info;
+        if (toast.type === "error") Icon = AlertCircle;
+        if (toast.type === "info") Icon = Info;
 
         return (
           <div key={toast.id} className={`toast ${toast.type}`}>
@@ -18,11 +18,11 @@ export default function Toast({ toasts, onDismiss }) {
             <button
               onClick={() => onDismiss(toast.id)}
               style={{
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--text-muted)',
-                padding: '4px',
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                color: "var(--text-muted)",
+                padding: "4px",
               }}
             >
               <X size={16} />

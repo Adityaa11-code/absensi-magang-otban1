@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { api, getAuthToken, setAuthToken } from '../services/api';
+import React, { createContext, useContext, useState, useEffect } from "react";
+import { api, getAuthToken, setAuthToken } from "../services/api";
 
 const AuthContext = createContext(null);
 
@@ -23,7 +23,7 @@ export function AuthProvider({ children }) {
           setAuthToken(null);
         }
       } catch (err) {
-        console.error('Session expired or error loading profile:', err);
+        console.error("Session expired or error loading profile:", err);
         setAuthToken(null);
         setUser(null);
       } finally {
@@ -32,6 +32,15 @@ export function AuthProvider({ children }) {
     }
 
     loadUser();
+  }, []);
+
+  useEffect(() => {
+    const expire = () => {
+      setUser(null);
+      setAuthToken(null);
+    };
+    window.addEventListener("otban-session-expired", expire);
+    return () => window.removeEventListener("otban-session-expired", expire);
   }, []);
 
   const login = async (email, password) => {
@@ -55,7 +64,7 @@ export function AuthProvider({ children }) {
         setUser(res.user);
       }
     } catch (err) {
-      console.error('Error refreshing user:', err);
+      console.error("Error refreshing user:", err);
     }
   };
 
@@ -69,7 +78,7 @@ export function AuthProvider({ children }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }

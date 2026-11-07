@@ -1,248 +1,215 @@
-import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { Plane, Lock, Mail, Eye, EyeOff, ShieldCheck, UserCheck, AlertCircle } from 'lucide-react';
-
+import React, { useState } from "react";
+import { useAuth } from "../context/AuthContext";
+import {
+  ArrowRight,
+  ShieldCheck,
+  GraduationCap,
+  Eye,
+  EyeOff,
+  MapPin,
+  BookOpenCheck,
+  ChartNoAxesCombined,
+  Plane,
+} from "lucide-react";
 export default function Login() {
   const { login } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleSubmit = async (e) => {
+  const [role, setRole] = useState("intern");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [visible, setVisible] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function submit(e) {
     e.preventDefault();
-    if (!email || !password) {
-      setError('Silakan isi email dan kata sandi Anda.');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-
+    setError("");
+    setBusy(true);
     try {
       await login(email, password);
-    } catch (err) {
-      setError(err.message || 'Login gagal. Periksa kembali email dan password Anda.');
+    } catch (e) {
+      setError(e.message);
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
-  };
-
-  const handleQuickLogin = (demoEmail, demoPassword) => {
-    setEmail(demoEmail);
-    setPassword(demoPassword);
-    setError('');
-  };
-
+  }
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'linear-gradient(135deg, #0a192f 0%, #0f172a 50%, #1e3a8a 100%)',
-      padding: '20px',
-      position: 'relative',
-    }}>
-      {/* Decorative Aviation Ambient Pattern */}
-      <div style={{
-        position: 'absolute',
-        top: '10%',
-        left: '10%',
-        width: '400px',
-        height: '400px',
-        background: 'radial-gradient(circle, rgba(2, 132, 199, 0.15) 0%, transparent 70%)',
-        borderRadius: '50%',
-        pointerEvents: 'none',
-      }} />
-
-      <div style={{
-        maxWidth: '460px',
-        width: '100%',
-        background: '#ffffff',
-        borderRadius: 'var(--radius-lg)',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
-        overflow: 'hidden',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        zIndex: 10,
-      }}>
-        {/* Header Header */}
-        <div style={{
-          background: 'linear-gradient(135deg, #0a192f 0%, #1e3a8a 100%)',
-          color: '#ffffff',
-          padding: '36px 32px 30px',
-          textAlign: 'center',
-          position: 'relative',
-        }}>
-          <img
-            src="/logo-otban.png"
-            alt="Logo Resmi Kantor Otoritas Bandar Udara Wilayah I"
-            style={{
-              height: '88px',
-              width: 'auto',
-              maxWidth: '100%',
-              objectFit: 'contain',
-              margin: '0 auto 14px',
-              display: 'block',
-              filter: 'drop-shadow(0 6px 14px rgba(0, 0, 0, 0.45))',
-            }}
-          />
-          <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.3px' }}>
-            OTBAN WILAYAH I
-          </h2>
-          <p style={{ fontSize: '13px', color: '#93c5fd', marginTop: '4px', fontWeight: 500 }}>
-            Sistem Informasi Absensi Peserta Magang
-          </p>
-          <div style={{
-            display: 'inline-block',
-            marginTop: '12px',
-            background: 'rgba(255, 255, 255, 0.1)',
-            padding: '4px 12px',
-            borderRadius: 'var(--radius-full)',
-            fontSize: '11px',
-            fontWeight: 600,
-            color: '#e2e8f0',
-            letterSpacing: '0.5px',
-          }}>
-            KANTOR OTORITAS BANDAR UDARA WILAYAH I - KELAS UTAMA
+    <div className="login-layout">
+      <section className="login-story">
+        <div className="login-brand">
+          <img src="/logo-otban.png" alt="Logo Otban Wilayah I" />
+          <div>
+            OTBAN WILAYAH I<small>KANTOR OTORITAS BANDAR UDARA</small>
           </div>
         </div>
-
-        {/* Form Body */}
-        <div style={{ padding: '32px' }}>
+        <div className="story-content">
+          <span className="eyebrow light">PORTAL MAGANG TERPADU</span>
+          <h1>
+            Langkah kecil hari ini.
+            <br />
+            <span>
+              Pengalaman besar
+              <br />
+              untuk masa depan.
+            </span>
+          </h1>
+          <p>
+            Ruang kerja digital untuk mencatat kehadiran, mengembangkan
+            kompetensi, dan mendampingi perjalanan magang.
+          </p>
+          <div className="story-features">
+            {[
+              [
+                MapPin,
+                "Presensi berbasis lokasi",
+                "Kehadiran yang tercatat dengan akurat",
+              ],
+              [
+                BookOpenCheck,
+                "Kegiatan yang terdokumentasi",
+                "Logbook harian dan umpan balik pembina",
+              ],
+              [
+                ChartNoAxesCombined,
+                "Perkembangan yang terukur",
+                "Monitoring dan rekap dalam satu tempat",
+              ],
+            ].map(([Icon, title, desc]) => (
+              <div key={title}>
+                <span>
+                  <Icon size={21} />
+                </span>
+                <section>
+                  <strong>{title}</strong>
+                  <small>{desc}</small>
+                </section>
+              </div>
+            ))}
+          </div>
+        </div>
+        <footer>
+          <Plane size={17} /> Kantor Otoritas Bandar Udara Wilayah I ·
+          Soekarno-Hatta
+        </footer>
+        <div className="flight-orbit" aria-hidden="true" />
+      </section>
+      <section className="login-panel">
+        <div className="login-form-wrap">
+          <span className="eyebrow">SELAMAT DATANG KEMBALI</span>
+          <h2>Masuk ke portal magang</h2>
+          <p className="muted">Satu akun, semua kebutuhan magangmu.</p>
+          <div className="role-selector" aria-label="Panduan akses">
+            {[
+              ["intern", GraduationCap, "Peserta magang"],
+              ["admin", ShieldCheck, "Admin / Pembina"],
+            ].map(([value, Icon, label]) => (
+              <button
+                type="button"
+                aria-pressed={role === value}
+                className={role === value ? "selected" : ""}
+                key={value}
+                onClick={() => {
+                  setRole(value);
+                  setError("");
+                }}
+              >
+                <Icon size={19} />
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="role-description">
+            {role === "admin"
+              ? "Kelola peserta, tinjau kegiatan, dan pantau kehadiran."
+              : "Catat presensi, kirim logbook, dan pantau perjalanan magangmu."}{" "}
+            Hak akses ditentukan oleh akun terdaftar.
+          </p>
           {error && (
-            <div style={{
-              background: '#fef2f2',
-              border: '1px solid #fecaca',
-              color: '#dc2626',
-              padding: '12px 14px',
-              borderRadius: 'var(--radius-md)',
-              fontSize: '13px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              marginBottom: '20px',
-            }}>
-              <AlertCircle size={18} style={{ flexShrink: 0 }} />
-              <span>{error}</span>
+            <div className="inline-error" role="alert">
+              {error}
             </div>
           )}
-
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={submit}>
             <div className="form-group">
-              <label className="form-label" htmlFor="email">Alamat Email</label>
-              <div style={{ position: 'relative' }}>
-                <Mail size={18} color="var(--text-muted)" style={{ position: 'absolute', left: '14px', top: '12px' }} />
-                <input
-                  id="email"
-                  type="email"
-                  className="form-input"
-                  style={{ paddingLeft: '42px' }}
-                  placeholder="nama@otban1.id"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
+              <label htmlFor="login-email" className="form-label">
+                Alamat email
+              </label>
+              <input
+                id="login-email"
+                className="form-input"
+                type="email"
+                autoComplete="username"
+                placeholder="nama@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                maxLength={200}
+              />
             </div>
-
             <div className="form-group">
-              <label className="form-label" htmlFor="password">Kata Sandi</label>
-              <div style={{ position: 'relative' }}>
-                <Lock size={18} color="var(--text-muted)" style={{ position: 'absolute', left: '14px', top: '12px' }} />
+              <label htmlFor="login-password" className="form-label">
+                Kata sandi
+              </label>
+              <div className="password-input">
                 <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
+                  id="login-password"
                   className="form-input"
-                  style={{ paddingLeft: '42px', paddingRight: '42px' }}
-                  placeholder="••••••••"
+                  type={visible ? "text" : "password"}
+                  autoComplete="current-password"
+                  placeholder="Masukkan kata sandi"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  style={{
-                    position: 'absolute',
-                    right: '12px',
-                    top: '11px',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: 'var(--text-muted)',
-                  }}
+                  aria-label={
+                    visible ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"
+                  }
+                  onClick={() => setVisible(!visible)}
                 >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {visible ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
-
-            <button
-              type="submit"
-              className="btn btn-primary btn-lg"
-              style={{ width: '100%', marginTop: '8px' }}
-              disabled={loading}
-            >
-              {loading ? 'Memverifikasi...' : 'Masuk ke Sistem'}
+            <button className="btn btn-primary login-submit" disabled={busy}>
+              {busy ? "Memverifikasi akun…" : "Masuk ke dashboard"}
+              <ArrowRight size={18} />
             </button>
           </form>
-
-          {/* Quick Demo Access Bar */}
-          <div style={{ marginTop: '28px', paddingTop: '20px', borderTop: '1px solid var(--border-light)' }}>
-            <div style={{
-              fontSize: '11.5px',
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              color: 'var(--text-muted)',
-              marginBottom: '10px',
-              textAlign: 'center',
-              letterSpacing: '0.5px',
-            }}>
-              Akun Uji Coba Cepat (Klik untuk Mengisi):
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('magang@otban1.id', 'MagangOtban2026!')}
-                className="btn btn-outline btn-sm"
-                style={{ fontSize: '12px', display: 'flex', flexDirection: 'column', padding: '8px', gap: '2px' }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 700, color: 'var(--primary-dark)' }}>
-                  <UserCheck size={14} color="var(--aviation-sky)" />
-                  <span>Peserta Magang</span>
-                </div>
-                <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Rizky Pratama</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('admin@otban1.id', 'AdminOtban2026!')}
-                className="btn btn-outline btn-sm"
-                style={{ fontSize: '12px', display: 'flex', flexDirection: 'column', padding: '8px', gap: '2px' }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 700, color: 'var(--primary-dark)' }}>
-                  <ShieldCheck size={14} color="var(--aviation-sky)" />
-                  <span>Admin Pembina</span>
-                </div>
-                <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Administrator</span>
-              </button>
-            </div>
+          <div className="login-help">
+            <ShieldCheck size={19} />
+            <span>
+              Belum punya akun atau lupa kata sandi?
+              <br />
+              <strong>Hubungi admin / pembina magang.</strong>
+            </span>
           </div>
+          {import.meta.env.DEV && (
+            <details className="demo-access">
+              <summary>Akun demonstrasi lokal</summary>
+              <p>Jalankan seeder terlebih dahulu.</p>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={() => {
+                  setEmail(
+                    role === "admin" ? "admin@otban1.id" : "magang@otban1.id",
+                  );
+                  setPassword(
+                    role === "admin" ? "AdminOtban2026!" : "MagangOtban2026!",
+                  );
+                }}
+              >
+                Isi akun {role === "admin" ? "admin" : "peserta"}
+              </button>
+            </details>
+          )}
+          <footer className="login-legal">
+            Sistem Informasi Absensi & Kegiatan Magang
+            <br />
+            Direktorat Jenderal Perhubungan Udara
+          </footer>
         </div>
-
-        <div style={{
-          background: '#f8fafc',
-          padding: '14px 20px',
-          textAlign: 'center',
-          fontSize: '11.5px',
-          color: 'var(--text-muted)',
-          borderTop: '1px solid var(--border-light)',
-        }}>
-          Kementerian Perhubungan RI &bull; Ditjen Perhubungan Udara
-        </div>
-      </div>
+      </section>
     </div>
   );
 }

@@ -1,6 +1,7 @@
-const db = require('../config/db');
-const { calculateDistanceMeters } = require('../utils/geo');
-const { getWIBDateTime } = require('../utils/time');
+const db = require("../config/db");
+const { validCoords } = require("../utils/validation");
+const { calculateDistanceMeters } = require("../utils/geo");
+const { getWIBDateTime } = require("../utils/time");
 
 function getTodayStatus(req, res) {
   try {
@@ -8,18 +9,28 @@ function getTodayStatus(req, res) {
     const userId = req.user.id;
 
     // Ambil data pengaturan kantor & radius terkini
-    const settings = db.prepare('SELECT office_name, office_address, office_lat, office_lng, radius_meters, radius_enabled, work_start_time, work_end_time FROM settings WHERE id = 1').get();
+    const settings = db
+      .prepare(
+        "SELECT office_name, office_address, office_lat, office_lng, radius_meters, radius_enabled, work_start_time, work_end_time FROM settings WHERE id = 1",
+      )
+      .get();
 
     // Cek absensi hari ini
-    const attendance = db.prepare('SELECT * FROM attendances WHERE user_id = ? AND date = ?').get(userId, date);
+    const attendance = db
+      .prepare("SELECT * FROM attendances WHERE user_id = ? AND date = ?")
+      .get(userId, date);
 
     // Cek apakah ada izin/sakit yang berlaku hari ini
-    const activeLeave = db.prepare(`
+    const activeLeave = db
+      .prepare(
+        `
       SELECT * FROM leaves 
       WHERE user_id = ? 
         AND status = 'approved' 
         AND ? BETWEEN start_date AND end_date
-    `).get(userId, date);
+    `,
+      )
+      .get(userId, date);
 
     res.json({
       success: true,
@@ -41,8 +52,13 @@ function getTodayStatus(req, res) {
       activeLeave: activeLeave || null,
     });
   } catch (err) {
-    console.error('Error getTodayStatus:', err);
-    res.status(500).json({ success: false, message: 'Gagal memuat status absensi hari ini.' });
+    console.error("Error getTodayStatus:", err);
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Gagal memuat status absensi hari ini.",
+      });
   }
 }
 
@@ -53,7 +69,11 @@ function checkIn(req, res) {
     const { latitude, longitude } = req.body;
 
     // Cek apakah sudah pernah check-in hari ini
-    const existing = db.prepare('SELECT id, check_in_time FROM attendances WHERE user_id = ? AND date = ?').get(userId, date);
+    const existing = db
+      .prepare(
+        "SELECT id, check_in_time FROM attendances WHERE user_id = ? AND date = ?",
+      )
+      .get(userId, date);
     if (existing && existing.check_in_time) {
       return res.status(400).json({
         success: false,
@@ -62,12 +82,16 @@ function checkIn(req, res) {
     }
 
     // Cek apakah ada izin aktif hari ini
-    const activeLeave = db.prepare(`
+    const activeLeave = db
+      .prepare(
+        `
       SELECT * FROM leaves 
       WHERE user_id = ? 
         AND status = 'approved' 
         AND ? BETWEEN start_date AND end_date
-    `).get(userId, date);
+    `,
+      )
+      .get(userId, date);
 
     if (activeLeave) {
       return res.status(400).json({
@@ -77,24 +101,58 @@ function checkIn(req, res) {
     }
 
     // Ambil konfigurasi kantor & radius
-    const settings = db.prepare('SELECT office_lat, office_lng, radius_meters, radius_enabled, work_start_time FROM settings WHERE id = 1').get();
+    const settings = db
+      .prepare(
+        "SELECT office_lat, office_lng, radius_meters, radius_enabled, work_start_time FROM settings WHERE id = 1",
+      )
+      .get();
 
+    if (
+      (settings.radius_enabled === 1 ||
+        latitude !== undefined ||
+        longitude !== undefined) &&
+      !validCoords(latitude, longitude)
+    )
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Koordinat GPS harus berupa angka latitude/longitude yang valid.",
+        });
     let distance = 0;
     if (settings.radius_enabled === 1) {
-      if (latitude === undefined || longitude === undefined || latitude === null || longitude === null) {
+      if (
+        latitude === undefined ||
+        longitude === undefined ||
+        latitude === null ||
+        longitude === null
+      ) {
         return res.status(400).json({
           success: false,
-          message: 'Lokasi GPS tidak terdeteksi. Harap aktifkan izin lokasi (GPS) pada browser/perangkat Anda.',
+          message:
+            "Lokasi GPS tidak terdeteksi. Harap aktifkan izin lokasi (GPS) pada browser/perangkat Anda.",
         });
       }
 
       const userLat = parseFloat(latitude);
       const userLng = parseFloat(longitude);
-      distance = calculateDistanceMeters(settings.office_lat, settings.office_lng, userLat, userLng);
+      distance = calculateDistanceMeters(
+        settings.office_lat,
+        settings.office_lng,
+        userLat,
+        userLng,
+      );
 
       if (distance > settings.radius_meters) {
-        const distanceDisplay = distance >= 1000 ? `${(distance / 1000).toFixed(2)} km` : `${distance} meter`;
-        const radiusDisplay = settings.radius_meters >= 1000 ? `${(settings.radius_meters / 1000).toFixed(2)} km` : `${settings.radius_meters} meter`;
+        const distanceDisplay =
+          distance >= 1000
+            ? `${(distance / 1000).toFixed(2)} km`
+            : `${distance} meter`;
+        const radiusDisplay =
+          settings.radius_meters >= 1000
+            ? `${(settings.radius_meters / 1000).toFixed(2)} km`
+            : `${settings.radius_meters} meter`;
 
         return res.status(400).json({
           success: false,
@@ -103,30 +161,56 @@ function checkIn(req, res) {
         });
       }
     } else if (latitude !== undefined && longitude !== undefined) {
-      distance = calculateDistanceMeters(settings.office_lat, settings.office_lng, parseFloat(latitude), parseFloat(longitude));
+      distance = calculateDistanceMeters(
+        settings.office_lat,
+        settings.office_lng,
+        parseFloat(latitude),
+        parseFloat(longitude),
+      );
     }
 
     // Tentukan status keterlambatan
     // Batas waktu: work_start_time (misal "08:00")
-    const [startH, startM] = settings.work_start_time.split(':').map(Number);
-    const isLate = (hour > startH) || (hour === startH && minute > startM);
-    const checkInStatus = isLate ? 'late' : 'on_time';
+    const [startH, startM] = settings.work_start_time.split(":").map(Number);
+    const isLate = hour > startH || (hour === startH && minute > startM);
+    const checkInStatus = isLate ? "late" : "on_time";
 
     // Insert atau Update record absensi hari ini
     if (existing) {
-      db.prepare(`
+      db.prepare(
+        `
         UPDATE attendances 
         SET check_in_time = ?, check_in_status = ?, check_in_lat = ?, check_in_lng = ?, check_in_distance = ?
         WHERE id = ?
-      `).run(time, checkInStatus, latitude || null, longitude || null, distance, existing.id);
+      `,
+      ).run(
+        time,
+        checkInStatus,
+        latitude || null,
+        longitude || null,
+        distance,
+        existing.id,
+      );
     } else {
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO attendances (user_id, date, check_in_time, check_in_status, check_in_lat, check_in_lng, check_in_distance)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(userId, date, time, checkInStatus, latitude || null, longitude || null, distance);
+      `,
+      ).run(
+        userId,
+        date,
+        time,
+        checkInStatus,
+        latitude || null,
+        longitude || null,
+        distance,
+      );
     }
 
-    const updated = db.prepare('SELECT * FROM attendances WHERE user_id = ? AND date = ?').get(userId, date);
+    const updated = db
+      .prepare("SELECT * FROM attendances WHERE user_id = ? AND date = ?")
+      .get(userId, date);
 
     res.json({
       success: true,
@@ -137,8 +221,10 @@ function checkIn(req, res) {
       distance,
     });
   } catch (err) {
-    console.error('Error checkIn:', err);
-    res.status(500).json({ success: false, message: 'Gagal memproses Absen Masuk.' });
+    console.error("Error checkIn:", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Gagal memproses Absen Masuk." });
   }
 }
 
@@ -147,13 +233,28 @@ function checkOut(req, res) {
     const { date, time, hour, minute } = getWIBDateTime();
     const userId = req.user.id;
     const { latitude, longitude, dailyReport } = req.body;
+    if (
+      typeof dailyReport !== "string" ||
+      dailyReport.trim().length < 20 ||
+      dailyReport.length > 5000
+    )
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Ringkasan kegiatan wajib diisi 20–5000 karakter sebelum pulang.",
+        });
 
-    const existing = db.prepare('SELECT * FROM attendances WHERE user_id = ? AND date = ?').get(userId, date);
+    const existing = db
+      .prepare("SELECT * FROM attendances WHERE user_id = ? AND date = ?")
+      .get(userId, date);
 
     if (!existing || !existing.check_in_time) {
       return res.status(400).json({
         success: false,
-        message: 'Anda belum melakukan Absen Masuk hari ini. Tidak dapat melakukan Absen Pulang.',
+        message:
+          "Anda belum melakukan Absen Masuk hari ini. Tidak dapat melakukan Absen Pulang.",
       });
     }
 
@@ -165,24 +266,58 @@ function checkOut(req, res) {
     }
 
     // Ambil konfigurasi kantor & radius
-    const settings = db.prepare('SELECT office_lat, office_lng, radius_meters, radius_enabled, work_end_time FROM settings WHERE id = 1').get();
+    const settings = db
+      .prepare(
+        "SELECT office_lat, office_lng, radius_meters, radius_enabled, work_end_time FROM settings WHERE id = 1",
+      )
+      .get();
 
+    if (
+      (settings.radius_enabled === 1 ||
+        latitude !== undefined ||
+        longitude !== undefined) &&
+      !validCoords(latitude, longitude)
+    )
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Koordinat GPS harus berupa angka latitude/longitude yang valid.",
+        });
     let distance = 0;
     if (settings.radius_enabled === 1) {
-      if (latitude === undefined || longitude === undefined || latitude === null || longitude === null) {
+      if (
+        latitude === undefined ||
+        longitude === undefined ||
+        latitude === null ||
+        longitude === null
+      ) {
         return res.status(400).json({
           success: false,
-          message: 'Lokasi GPS tidak terdeteksi. Harap aktifkan izin lokasi perangkat Anda.',
+          message:
+            "Lokasi GPS tidak terdeteksi. Harap aktifkan izin lokasi perangkat Anda.",
         });
       }
 
       const userLat = parseFloat(latitude);
       const userLng = parseFloat(longitude);
-      distance = calculateDistanceMeters(settings.office_lat, settings.office_lng, userLat, userLng);
+      distance = calculateDistanceMeters(
+        settings.office_lat,
+        settings.office_lng,
+        userLat,
+        userLng,
+      );
 
       if (distance > settings.radius_meters) {
-        const distanceDisplay = distance >= 1000 ? `${(distance / 1000).toFixed(2)} km` : `${distance} meter`;
-        const radiusDisplay = settings.radius_meters >= 1000 ? `${(settings.radius_meters / 1000).toFixed(2)} km` : `${settings.radius_meters} meter`;
+        const distanceDisplay =
+          distance >= 1000
+            ? `${(distance / 1000).toFixed(2)} km`
+            : `${distance} meter`;
+        const radiusDisplay =
+          settings.radius_meters >= 1000
+            ? `${(settings.radius_meters / 1000).toFixed(2)} km`
+            : `${settings.radius_meters} meter`;
 
         return res.status(400).json({
           success: false,
@@ -191,21 +326,38 @@ function checkOut(req, res) {
         });
       }
     } else if (latitude !== undefined && longitude !== undefined) {
-      distance = calculateDistanceMeters(settings.office_lat, settings.office_lng, parseFloat(latitude), parseFloat(longitude));
+      distance = calculateDistanceMeters(
+        settings.office_lat,
+        settings.office_lng,
+        parseFloat(latitude),
+        parseFloat(longitude),
+      );
     }
 
     // Cek jam pulang normal
-    const [endH, endM] = settings.work_end_time.split(':').map(Number);
-    const isEarly = (hour < endH) || (hour === endH && minute < endM);
-    const checkOutStatus = isEarly ? 'early_leave' : 'on_time';
+    const [endH, endM] = settings.work_end_time.split(":").map(Number);
+    const isEarly = hour < endH || (hour === endH && minute < endM);
+    const checkOutStatus = isEarly ? "early_leave" : "on_time";
 
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE attendances 
       SET check_out_time = ?, check_out_status = ?, check_out_lat = ?, check_out_lng = ?, check_out_distance = ?, daily_report = ?
       WHERE id = ?
-    `).run(time, checkOutStatus, latitude || null, longitude || null, distance, dailyReport || null, existing.id);
+    `,
+    ).run(
+      time,
+      checkOutStatus,
+      latitude || null,
+      longitude || null,
+      distance,
+      dailyReport || null,
+      existing.id,
+    );
 
-    const updated = db.prepare('SELECT * FROM attendances WHERE id = ?').get(existing.id);
+    const updated = db
+      .prepare("SELECT * FROM attendances WHERE id = ?")
+      .get(existing.id);
 
     res.json({
       success: true,
@@ -216,8 +368,10 @@ function checkOut(req, res) {
       distance,
     });
   } catch (err) {
-    console.error('Error checkOut:', err);
-    res.status(500).json({ success: false, message: 'Gagal memproses Absen Pulang.' });
+    console.error("Error checkOut:", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Gagal memproses Absen Pulang." });
   }
 }
 
@@ -226,11 +380,11 @@ function getMyHistory(req, res) {
     const userId = req.user.id;
     const { month, year } = req.query;
 
-    let query = 'SELECT * FROM attendances WHERE user_id = ?';
+    let query = "SELECT * FROM attendances WHERE user_id = ?";
     const params = [userId];
 
     if (month && year) {
-      const monthPadded = month.toString().padStart(2, '0');
+      const monthPadded = month.toString().padStart(2, "0");
       query += ` AND strftime('%Y-%m', date) = ?`;
       params.push(`${year}-${monthPadded}`);
     } else if (year) {
@@ -238,13 +392,15 @@ function getMyHistory(req, res) {
       params.push(`${year}`);
     }
 
-    query += ' ORDER BY date DESC';
+    query += " ORDER BY date DESC";
 
     const attendances = db.prepare(query).all(...params);
     res.json({ success: true, attendances });
   } catch (err) {
-    console.error('Error getMyHistory:', err);
-    res.status(500).json({ success: false, message: 'Gagal mengambil riwayat absensi.' });
+    console.error("Error getMyHistory:", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Gagal mengambil riwayat absensi." });
   }
 }
 
@@ -254,30 +410,64 @@ function getMyStats(req, res) {
     const { date } = getWIBDateTime();
     const currentMonthPrefix = date.substring(0, 7); // 'YYYY-MM'
 
-    const totalPresent = db.prepare(`
+    const totalPresent = db
+      .prepare(
+        `
       SELECT COUNT(*) as count FROM attendances 
       WHERE user_id = ? AND strftime('%Y-%m', date) = ? AND check_in_time IS NOT NULL
-    `).get(userId, currentMonthPrefix).count;
+    `,
+      )
+      .get(userId, currentMonthPrefix).count;
 
-    const onTime = db.prepare(`
+    const onTime = db
+      .prepare(
+        `
       SELECT COUNT(*) as count FROM attendances 
       WHERE user_id = ? AND strftime('%Y-%m', date) = ? AND check_in_status = 'on_time'
-    `).get(userId, currentMonthPrefix).count;
+    `,
+      )
+      .get(userId, currentMonthPrefix).count;
 
-    const late = db.prepare(`
+    const late = db
+      .prepare(
+        `
       SELECT COUNT(*) as count FROM attendances 
       WHERE user_id = ? AND strftime('%Y-%m', date) = ? AND check_in_status = 'late'
-    `).get(userId, currentMonthPrefix).count;
+    `,
+      )
+      .get(userId, currentMonthPrefix).count;
 
-    const sickCount = db.prepare(`
-      SELECT COUNT(*) as count FROM leaves 
-      WHERE user_id = ? AND type = 'sakit' AND status = 'approved' AND strftime('%Y-%m', start_date) = ?
-    `).get(userId, currentMonthPrefix).count;
-
-    const permissionCount = db.prepare(`
-      SELECT COUNT(*) as count FROM leaves 
-      WHERE user_id = ? AND type != 'sakit' AND status = 'approved' AND strftime('%Y-%m', start_date) = ?
-    `).get(userId, currentMonthPrefix).count;
+    const monthStart = currentMonthPrefix + "-01";
+    const monthEnd = new Date(
+      Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)), 0),
+    )
+      .toISOString()
+      .slice(0, 10);
+    const approved = db
+      .prepare(
+        "SELECT type,start_date,end_date FROM leaves WHERE user_id=? AND status='approved' AND start_date<=? AND end_date>=?",
+      )
+      .all(userId, monthEnd, monthStart);
+    function countDays(filter) {
+      const days = new Set();
+      for (const leave of approved.filter(filter)) {
+        for (
+          let day = new Date(
+            (leave.start_date > monthStart ? leave.start_date : monthStart) +
+              "T00:00:00Z",
+          );
+          day.toISOString().slice(0, 10) <= leave.end_date &&
+          day.toISOString().slice(0, 10) <= monthEnd;
+          day.setUTCDate(day.getUTCDate() + 1)
+        ) {
+          if (![0, 6].includes(day.getUTCDay()))
+            days.add(day.toISOString().slice(0, 10));
+        }
+      }
+      return days.size;
+    }
+    const sickCount = countDays((l) => l.type === "sakit");
+    const permissionCount = countDays((l) => l.type !== "sakit");
 
     res.json({
       success: true,
@@ -290,8 +480,13 @@ function getMyStats(req, res) {
       },
     });
   } catch (err) {
-    console.error('Error getMyStats:', err);
-    res.status(500).json({ success: false, message: 'Gagal mengambil statistik kehadiran.' });
+    console.error("Error getMyStats:", err);
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Gagal mengambil statistik kehadiran.",
+      });
   }
 }
 

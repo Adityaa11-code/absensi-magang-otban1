@@ -1,4 +1,5 @@
-const db = require('../config/db');
+const db = require("../config/db");
+const { validDate, text } = require("../utils/validation");
 
 function applyLeave(req, res) {
   try {
@@ -6,11 +7,59 @@ function applyLeave(req, res) {
     const { startDate, endDate, type, reason } = req.body;
 
     if (!startDate || !endDate || !type || !reason) {
-      return res.status(400).json({ success: false, message: 'Semua kolom wajib diisi (tanggal mulai, selesai, tipe izin, alasan).' });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Semua kolom wajib diisi (tanggal mulai, selesai, tipe izin, alasan).",
+        });
     }
 
+    if (
+      !validDate(startDate) ||
+      !validDate(endDate) ||
+      !["sakit", "izin", "dispensasi"].includes(type) ||
+      !text(reason, 10, 3000)
+    )
+      return res
+        .status(400)
+        .json({
+          message:
+            "Tanggal, jenis izin, atau alasan (10–3000 karakter) tidak valid.",
+        });
+    if (
+      db
+        .prepare(
+          `SELECT id FROM leaves WHERE user_id=? AND status IN ('pending','approved') AND start_date<=? AND end_date>=?`,
+        )
+        .get(userId, endDate, startDate)
+    )
+      return res
+        .status(409)
+        .json({
+          message: "Sudah ada pengajuan izin pada rentang tanggal tersebut.",
+        });
+    if (
+      db
+        .prepare(
+          "SELECT id FROM attendances WHERE user_id=? AND date BETWEEN ? AND ? AND check_in_time IS NOT NULL",
+        )
+        .get(userId, startDate, endDate)
+    )
+      return res
+        .status(409)
+        .json({
+          message: "Terdapat presensi masuk pada rentang tanggal yang dipilih.",
+        });
     if (new Date(startDate) > new Date(endDate)) {
-      return res.status(400).json({ success: false, message: 'Tanggal mulai tidak boleh lebih besar dari tanggal selesai.' });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Tanggal mulai tidak boleh lebih besar dari tanggal selesai.",
+        });
     }
 
     // Ambil path file lampiran jika diunggah
@@ -24,28 +73,49 @@ function applyLeave(req, res) {
       VALUES (?, ?, ?, ?, ?, ?, 'pending')
     `);
 
-    const result = stmt.run(userId, startDate, endDate, type, reason.trim(), attachmentPath);
-    const newLeave = db.prepare('SELECT * FROM leaves WHERE id = ?').get(result.lastInsertRowid);
+    const result = stmt.run(
+      userId,
+      startDate,
+      endDate,
+      type,
+      reason.trim(),
+      attachmentPath,
+    );
+    const newLeave = db
+      .prepare("SELECT * FROM leaves WHERE id = ?")
+      .get(result.lastInsertRowid);
 
     res.json({
       success: true,
-      message: 'Pengajuan izin berhasil dikirim. Menunggu persetujuan Admin/Pembimbing.',
+      message:
+        "Pengajuan izin berhasil dikirim. Menunggu persetujuan Admin/Pembimbing.",
       leave: newLeave,
     });
   } catch (err) {
-    console.error('Error applyLeave:', err);
-    res.status(500).json({ success: false, message: 'Gagal mengajukan permohonan izin.' });
+    console.error("Error applyLeave:", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Gagal mengajukan permohonan izin." });
   }
 }
 
 function getMyLeaves(req, res) {
   try {
     const userId = req.user.id;
-    const leaves = db.prepare('SELECT * FROM leaves WHERE user_id = ? ORDER BY created_at DESC').all(userId);
+    const leaves = db
+      .prepare(
+        "SELECT * FROM leaves WHERE user_id = ? ORDER BY created_at DESC",
+      )
+      .all(userId);
     res.json({ success: true, leaves });
   } catch (err) {
-    console.error('Error getMyLeaves:', err);
-    res.status(500).json({ success: false, message: 'Gagal mengambil riwayat pengajuan izin.' });
+    console.error("Error getMyLeaves:", err);
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Gagal mengambil riwayat pengajuan izin.",
+      });
   }
 }
 
@@ -54,22 +124,34 @@ function cancelLeave(req, res) {
     const userId = req.user.id;
     const leaveId = req.params.id;
 
-    const leave = db.prepare('SELECT * FROM leaves WHERE id = ? AND user_id = ?').get(leaveId, userId);
+    const leave = db
+      .prepare("SELECT * FROM leaves WHERE id = ? AND user_id = ?")
+      .get(leaveId, userId);
 
     if (!leave) {
-      return res.status(404).json({ success: false, message: 'Pengajuan izin tidak ditemukan.' });
+      return res
+        .status(404)
+        .json({ success: false, message: "Pengajuan izin tidak ditemukan." });
     }
 
-    if (leave.status !== 'pending') {
-      return res.status(400).json({ success: false, message: 'Hanya pengajuan berstatus Menunggu Persetujuan yang dapat dibatalkan.' });
+    if (leave.status !== "pending") {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Hanya pengajuan berstatus Menunggu Persetujuan yang dapat dibatalkan.",
+        });
     }
 
-    db.prepare('DELETE FROM leaves WHERE id = ?').run(leaveId);
+    db.prepare("DELETE FROM leaves WHERE id = ?").run(leaveId);
 
-    res.json({ success: true, message: 'Pengajuan izin berhasil dibatalkan.' });
+    res.json({ success: true, message: "Pengajuan izin berhasil dibatalkan." });
   } catch (err) {
-    console.error('Error cancelLeave:', err);
-    res.status(500).json({ success: false, message: 'Gagal membatalkan pengajuan izin.' });
+    console.error("Error cancelLeave:", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Gagal membatalkan pengajuan izin." });
   }
 }
 

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { api } from '../../services/api';
+import React, { useState, useEffect } from "react";
+import { api } from "../../services/api";
 import {
   BarChart3,
   Download,
@@ -8,36 +8,36 @@ import {
   Filter,
   FileSpreadsheet,
   CheckCircle2,
-  Building2
-} from 'lucide-react';
+  Building2,
+} from "lucide-react";
 
 const OTBAN_DIVISIONS = [
-  'Divisi Kelaikudaraan & Pengoperasian Pesawat Udara',
-  'Divisi Pelayanan & Pengoperasian Bandar Udara',
-  'Divisi Keamanan Penerbangan',
-  'Bagian Tata Usaha & Kepegawaian',
-  'Subbagian Hukum & Humas',
+  "Divisi Kelaikudaraan & Pengoperasian Pesawat Udara",
+  "Divisi Pelayanan & Pengoperasian Bandar Udara",
+  "Divisi Keamanan Penerbangan",
+  "Bagian Tata Usaha & Kepegawaian",
+  "Subbagian Hukum & Humas",
 ];
 
 export default function AdminReports({ showToast }) {
   // Default range: awal bulan s.d. hari ini
   const today = new Date();
   const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const day = String(today.getDate()).padStart(2, '0');
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
 
   const defaultStart = `${year}-${month}-01`;
   const defaultEnd = `${year}-${month}-${day}`;
 
   const [startDate, setStartDate] = useState(defaultStart);
   const [endDate, setEndDate] = useState(defaultEnd);
-  const [division, setDivision] = useState('');
+  const [division, setDivision] = useState("");
   const [reportData, setReportData] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const fetchReports = async () => {
     if (!startDate || !endDate) {
-      showToast('Tentukan tanggal mulai dan selesai.', 'error');
+      showToast("Tentukan tanggal mulai dan selesai.", "error");
       return;
     }
 
@@ -51,7 +51,7 @@ export default function AdminReports({ showToast }) {
         setReportData(res.report || []);
       }
     } catch (err) {
-      showToast(err.message || 'Gagal memuat rekapitulasi laporan.', 'error');
+      showToast(err.message || "Gagal memuat rekapitulasi laporan.", "error");
     } finally {
       setLoading(false);
     }
@@ -68,18 +68,29 @@ export default function AdminReports({ showToast }) {
 
   const handleExportCSV = () => {
     if (reportData.length === 0) {
-      showToast('Tidak ada data yang dapat diekspor.', 'error');
+      showToast("Tidak ada data yang dapat diekspor.", "error");
       return;
     }
 
     // Buat header CSV
-    const headers = ['No', 'Nama Peserta Magang', 'NIM/NISN', 'Institusi/Kampus', 'Divisi Otban 1', 'Total Hadir', 'Tepat Waktu', 'Terlambat', 'Sakit', 'Izin'];
+    const headers = [
+      "No",
+      "Nama Peserta Magang",
+      "NIM/NISN",
+      "Institusi/Kampus",
+      "Divisi Otban 1",
+      "Total Hadir",
+      "Tepat Waktu",
+      "Terlambat",
+      "Sakit",
+      "Izin",
+    ];
     const rows = reportData.map((item, index) => [
       index + 1,
-      `"${item.name}"`,
-      `"${item.nim}"`,
-      `"${item.institution}"`,
-      `"${item.division}"`,
+      item.name,
+      item.nim,
+      item.institution,
+      item.division,
       item.totalHadir,
       item.tepatWaktu,
       item.terlambat,
@@ -87,15 +98,24 @@ export default function AdminReports({ showToast }) {
       item.izin,
     ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Rekap_Absensi_Otban1_${startDate}_sd_${endDate}.csv`);
-    document.body.appendChild(link);
+    const escape = (v) =>
+      '"' +
+      String(v ?? "")
+        .replace(/^[=+@-]/, "'$&")
+        .replaceAll('"', '""') +
+      '"';
+    const csvContent =
+      "\uFEFF" +
+      [headers, ...rows].map((row) => row.map(escape).join(",")).join("\r\n");
+    const url = URL.createObjectURL(
+      new Blob([csvContent], { type: "text/csv;charset=utf-8" }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Rekap_Absensi_${startDate}_${endDate}.csv`;
     link.click();
-    document.body.removeChild(link);
-    showToast('File CSV Rekapitulasi berhasil diunduh.', 'success');
+    URL.revokeObjectURL(url);
+    showToast("File CSV Rekapitulasi berhasil diunduh.", "success");
   };
 
   const handlePrint = () => {
@@ -105,23 +125,32 @@ export default function AdminReports({ showToast }) {
   return (
     <div>
       <div className="card">
-        <div className="card-header" style={{ flexWrap: 'wrap', gap: '14px' }}>
+        <div className="card-header" style={{ flexWrap: "wrap", gap: "14px" }}>
           <div>
             <div className="card-title">
               <BarChart3 size={20} color="var(--aviation-sky)" />
               <span>Rekapitulasi & Laporan Kehadiran</span>
             </div>
             <div className="card-subtitle">
-              Laporan akumulasi absensi masuk, keterlambatan, sakit, dan izin peserta magang Otban 1.
+              Laporan presensi dan jumlah hari izin/sakit pada Senin�Jumat. Hari
+              libur nasional belum diperhitungkan.
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={handleExportCSV} className="btn btn-outline" style={{ gap: '6px' }}>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button
+              onClick={handleExportCSV}
+              className="btn btn-outline"
+              style={{ gap: "6px" }}
+            >
               <Download size={16} color="var(--success)" />
               <span>Ekspor ke Excel / CSV</span>
             </button>
-            <button onClick={handlePrint} className="btn btn-outline" style={{ gap: '6px' }}>
+            <button
+              onClick={handlePrint}
+              className="btn btn-outline"
+              style={{ gap: "6px" }}
+            >
               <Printer size={16} />
               <span>Cetak Laporan</span>
             </button>
@@ -129,7 +158,16 @@ export default function AdminReports({ showToast }) {
         </div>
 
         {/* Filter Bar */}
-        <form onSubmit={handleFilterSubmit} style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '24px', alignItems: 'flex-end' }}>
+        <form
+          onSubmit={handleFilterSubmit}
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "12px",
+            marginBottom: "24px",
+            alignItems: "flex-end",
+          }}
+        >
           <div>
             <label className="form-label">Tanggal Mulai</label>
             <input
@@ -152,7 +190,7 @@ export default function AdminReports({ showToast }) {
             />
           </div>
 
-          <div style={{ minWidth: '220px' }}>
+          <div style={{ minWidth: "220px" }}>
             <label className="form-label">Divisi Penempatan</label>
             <select
               className="form-select"
@@ -161,12 +199,18 @@ export default function AdminReports({ showToast }) {
             >
               <option value="">Semua Divisi</option>
               {OTBAN_DIVISIONS.map((d) => (
-                <option key={d} value={d}>{d}</option>
+                <option key={d} value={d}>
+                  {d}
+                </option>
               ))}
             </select>
           </div>
 
-          <button type="submit" className="btn btn-primary" style={{ height: '42px' }}>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            style={{ height: "42px" }}
+          >
             <Filter size={16} />
             <span>Tampilkan Rekap</span>
           </button>
@@ -174,9 +218,25 @@ export default function AdminReports({ showToast }) {
 
         {/* Tabel Rekapitulasi */}
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '50px', color: 'var(--text-muted)' }}>Menyusun data rekapitulasi...</div>
+          <div
+            style={{
+              textAlign: "center",
+              padding: "50px",
+              color: "var(--text-muted)",
+            }}
+          >
+            Menyusun data rekapitulasi...
+          </div>
         ) : reportData.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '50px', color: 'var(--text-muted)' }}>Tidak ada data peserta pada periode ini.</div>
+          <div
+            style={{
+              textAlign: "center",
+              padding: "50px",
+              color: "var(--text-muted)",
+            }}
+          >
+            Tidak ada data peserta pada periode ini.
+          </div>
         ) : (
           <div className="table-responsive">
             <table className="custom-table">
@@ -186,11 +246,11 @@ export default function AdminReports({ showToast }) {
                   <th>Nama Peserta Magang</th>
                   <th>Institusi / Kampus</th>
                   <th>Divisi Otban 1</th>
-                  <th style={{ textAlign: 'center' }}>Total Hadir</th>
-                  <th style={{ textAlign: 'center' }}>Tepat Waktu</th>
-                  <th style={{ textAlign: 'center' }}>Terlambat</th>
-                  <th style={{ textAlign: 'center' }}>Sakit</th>
-                  <th style={{ textAlign: 'center' }}>Izin</th>
+                  <th style={{ textAlign: "center" }}>Total Hadir</th>
+                  <th style={{ textAlign: "center" }}>Tepat Waktu</th>
+                  <th style={{ textAlign: "center" }}>Terlambat</th>
+                  <th style={{ textAlign: "center" }}>Sakit</th>
+                  <th style={{ textAlign: "center" }}>Izin</th>
                 </tr>
               </thead>
               <tbody>
@@ -198,28 +258,82 @@ export default function AdminReports({ showToast }) {
                   <tr key={row.id}>
                     <td>{idx + 1}</td>
                     <td>
-                      <div style={{ fontWeight: 700, fontSize: '13.5px', color: 'var(--primary-dark)' }}>{row.name}</div>
-                      <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>NIM: {row.nim}</div>
+                      <div
+                        style={{
+                          fontWeight: 700,
+                          fontSize: "13.5px",
+                          color: "var(--primary-dark)",
+                        }}
+                      >
+                        {row.name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "11.5px",
+                          color: "var(--text-secondary)",
+                        }}
+                      >
+                        NIM: {row.nim}
+                      </div>
                     </td>
                     <td>
-                      <div style={{ fontSize: '12.5px' }}>{row.institution}</div>
+                      <div style={{ fontSize: "12.5px" }}>
+                        {row.institution}
+                      </div>
                     </td>
                     <td>
-                      <div style={{ fontSize: '12px', color: 'var(--aviation-sky)', fontWeight: 600 }}>{row.division}</div>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          color: "var(--aviation-sky)",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {row.division}
+                      </div>
                     </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <span className="badge badge-on_time" style={{ fontSize: '12px' }}>{row.totalHadir} Hari</span>
+                    <td style={{ textAlign: "center" }}>
+                      <span
+                        className="badge badge-on_time"
+                        style={{ fontSize: "12px" }}
+                      >
+                        {row.totalHadir} Hari
+                      </span>
                     </td>
-                    <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--success)' }}>
+                    <td
+                      style={{
+                        textAlign: "center",
+                        fontWeight: 700,
+                        color: "var(--success)",
+                      }}
+                    >
                       {row.tepatWaktu}
                     </td>
-                    <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--warning)' }}>
+                    <td
+                      style={{
+                        textAlign: "center",
+                        fontWeight: 700,
+                        color: "var(--warning)",
+                      }}
+                    >
                       {row.terlambat}
                     </td>
-                    <td style={{ textAlign: 'center', fontWeight: 600, color: 'var(--info)' }}>
+                    <td
+                      style={{
+                        textAlign: "center",
+                        fontWeight: 600,
+                        color: "var(--info)",
+                      }}
+                    >
                       {row.sakit}
                     </td>
-                    <td style={{ textAlign: 'center', fontWeight: 600, color: 'var(--purple)' }}>
+                    <td
+                      style={{
+                        textAlign: "center",
+                        fontWeight: 600,
+                        color: "var(--purple)",
+                      }}
+                    >
                       {row.izin}
                     </td>
                   </tr>
